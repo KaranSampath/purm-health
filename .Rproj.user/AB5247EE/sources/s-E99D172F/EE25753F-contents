@@ -1,0 +1,4 @@
+
+setwd("K:/College/Research/PURM/data")
+t <- read.csv(file = "sapphirine1.csv", header = TRUE, sep = ",", skip = 0, na.strings = NA, nrows = -1)
+
