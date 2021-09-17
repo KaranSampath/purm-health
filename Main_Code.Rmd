@@ -1,0 +1,771 @@
+---
+title: "PURM Document"
+output: html_document
+---
+
+## Setting Directory
+
+We first set the directory for the EPA plots. Installing required packages.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '/Users/karansampath/Desktop/Research/PURM')
+
+# Put in message = false, warning = false
+```
+
+
+## Installing Packages
+
+```{r eval=FALSE, include=FALSE}
+if (!require(dplyr)) {
+    install.packages("dplyr", repos = "http://cran.us.r-project.org")
+    require(dplyr)
+}
+if (!require(sf)) {
+    install.packages("sf", repos = "http://cran.us.r-project.org")
+    require(sf)
+}
+if (!require(rgdal)) {
+    install.packages("rgdal", repos = "http://cran.us.r-project.org")
+    require(rgdal)
+}
+
+if (!require(raster)) {
+    install.packages("raster", repos = "http://cran.us.r-project.org")
+    require(raster)
+}
+if (!require(tigris)) {
+    install.packages("tigris", repos = "http://cran.us.r-project.org")
+    require(tigris)
+}
+if (!require(tmap)) {
+    install.packages("tmap", repos = "http://cran.us.r-project.org")
+    require(tmap)
+}
+if (!require(SpatialPack)) {
+    install.packages("SpatialPack", repos = "http://cran.us.r-project.org")
+    require(SpatialPack)
+}
+if(!require(ggcorrplot)){
+    install.packages("ggcorrplot", repos = "http://cran.us.r-project.org")
+    require(ggcorrplot)
+}
+if(!require(psych)){
+    install.packages("psych", repos = "http://cran.us.r-project.org")
+    require(psych)
+}
+if(!require(ggpubr)){
+    install.packages("ggpubr", repos = "http://cran.us.r-project.org")
+    require(ggpubr)
+}
+if(!require(Hmisc)){
+    install.packages("Hmisc", repos = "http://cran.us.r-project.org")
+    require(Hmisc)
+}
+if(!require(corrplot)){
+    install.packages("corrplot", repos = "http://cran.us.r-project.org")
+    require(corrplot)
+}
+```
+
+## Loading Libraries
+
+We load all required libraries together.
+
+```{r libraries,  message=FALSE}
+library(sf)
+library(corrr)
+library(tmap)
+library(rgdal)
+library(dplyr)
+library(raster)
+library(data.table)
+library(sp)
+library(tidyverse)
+library(tidycensus)
+library(psych)
+library(tigris)
+library(leaflet)
+library(maps)
+library(gstat)
+library(chron)
+library(maptools)
+library(ggcorrplot)
+library(ggpubr)
+library(Hmisc)
+library(corrplot)
+```
+
+##Inputting CSVs
+
+We inputting the various csv files of different pollutants. (What are they, where they came from, what all they did, what's the goal, etc.). (Show fancier tables, like cable)
+
+```{r input}
+#read in and wrangle epa data for SO2 
+so2_epa <- read.csv("SO2.csv")
+so2_epa_df <- so2_epa %>% 
+  dplyr::mutate(
+    Date = as.factor(gsub("/00","/",strftime(as.Date(Date, format="%m/%d/%Y"), format="%m/%d/%Y"))),
+    Day = gsub("/([^/]*)$","",Date),
+    Year = as.factor(paste0("20",gsub(".*/","",Date))),
+    Mean_value = round(SO2,2),
+    SiteName = as.factor(gsub(".*[(]","(","Site Name")),
+    Parameter_name = as.character("SO2")) %>% dplyr::rename(Latitude = SITE_LATITUDE, Longitude = SITE_LONGITUDE)
+
+
+so2_epa_df <- so2_epa_df %>% dplyr::filter(COUNTY == "Philadelphia")
+
+#read in and wrangle epa data for PM2.5 
+pm_epa <- read.csv("PM25.csv")
+
+pm_epa_df <- pm_epa %>% 
+  dplyr::mutate(
+    Date = as.factor(gsub("/00","/",strftime(as.Date(Date, format="%m/%d/%Y"), format="%m/%d/%Y"))),
+    Day = gsub("/([^/]*)$","",Date),
+    Year = as.factor(paste0("20",gsub(".*/","",Date))),
+    Mean_value = round(Daily.Mean.PM2.5.Concentration,2),
+    SiteName = as.factor(gsub(".*[(]","(","Site Name")),
+    Parameter_name = as.character("PM2.5")) %>% dplyr::rename(Latitude = SITE_LATITUDE, Longitude = SITE_LONGITUDE)
+
+
+pm_epa_df <- pm_epa_df %>% dplyr::filter(COUNTY == "Philadelphia")
+
+#read in and wrangle epa data for Ozone 
+pm_oz <- read.csv("Ozone.csv")
+
+pm_oz_df <- pm_oz %>% 
+  dplyr::mutate(
+    Date = as.factor(gsub("/00","/",strftime(as.Date(Date, format="%m/%d/%Y"), format="%m/%d/%Y"))),
+    Day = gsub("/([^/]*)$","",Date),
+    Year = as.factor(paste0("20",gsub(".*/","",Date))),
+    Mean_value = round(Daily.Max.8.hour.Ozone.Concentration,2),
+    SiteName = as.factor(gsub(".*[(]","(","Site Name")),
+    Parameter_name = as.character("OZ")) %>% dplyr::rename(Latitude = SITE_LATITUDE, Longitude = SITE_LONGITUDE)
+
+
+pm_oz_df <- pm_oz_df %>% dplyr::filter(COUNTY == "Philadelphia")
+
+
+#read in and wrangle epa data for NO2 
+pm_no2 <- read.csv("NO2.csv")
+
+pm_no2_df <- pm_no2 %>% 
+  dplyr::mutate(
+    Date = as.factor(gsub("/00","/",strftime(as.Date(Date, format="%m/%d/%Y"), format="%m/%d/%Y"))),
+    Day = gsub("/([^/]*)$","",Date),
+    Year = as.factor(paste0("20",gsub(".*/","",Date))),
+    Mean_value = round(Daily.Max.1.hour.NO2.Concentration,2),
+    SiteName = as.factor(gsub(".*[(]","(","Site Name")),
+    Parameter_name = as.character("NO2")) %>% dplyr::rename(Latitude = SITE_LATITUDE, Longitude = SITE_LONGITUDE)
+
+
+pm_no2_df <- pm_no2_df %>% dplyr::filter(COUNTY == "Philadelphia")
+
+
+#read in and wrangle epa data for Lead 
+pm_pb <- read.csv("Pb.csv")
+
+pm_pb_df <- pm_pb %>% 
+  dplyr::mutate(
+    Date = as.factor(gsub("/00","/",strftime(as.Date(Date, format="%m/%d/%Y"), format="%m/%d/%Y"))),
+    Day = gsub("/([^/]*)$","",Date),
+    Year = as.factor(paste0("20",gsub(".*/","",Date))),
+    Mean_value = round(Daily.Mean.Pb.Concentration,2),
+    SiteName = as.factor(gsub(".*[(]","(","Site Name")),
+    Parameter_name = as.character("Pb")) %>% dplyr::rename(Latitude = SITE_LATITUDE, Longitude = SITE_LONGITUDE)
+
+
+pm_pb_df <- pm_pb_df %>% dplyr::filter(COUNTY == "Philadelphia")
+
+#read in and wrangle epa data for CO 
+pm_co <- read.csv("CO.csv")
+
+pm_co_df <- pm_co %>% 
+  dplyr::mutate(
+    Date = as.factor(gsub("/00","/",strftime(as.Date(Date, format="%m/%d/%Y"), format="%m/%d/%Y"))),
+    Day = gsub("/([^/]*)$","",Date),
+    Year = as.factor(paste0("20",gsub(".*/","",Date))),
+    Mean_value = round(Daily.Max.8.hour.CO.Concentration,2),
+    SiteName = as.factor(gsub(".*[(]","(","Site Name")),
+    Parameter_name = as.character("CO")) %>% dplyr::rename(Latitude = SITE_LATITUDE, Longitude = SITE_LONGITUDE)
+
+
+pm_co_df <- pm_co_df %>% dplyr::filter(COUNTY == "Philadelphia")
+
+
+#read in and wrangle epa data for PM10 
+pm_10 <- read.csv("PM10.csv")
+
+pm_10_df <- pm_10 %>% 
+  dplyr::mutate(
+    Date = as.factor(gsub("/00","/",strftime(as.Date(Date, format="%m/%d/%Y"), format="%m/%d/%Y"))),
+    Day = gsub("/([^/]*)$","",Date),
+    Year = as.factor(paste0("20",gsub(".*/","",Date))),
+    Mean_value = round(Daily.Mean.PM10.Concentration,2),
+    SiteName = as.factor(gsub(".*[(]","(","Site Name")),
+    Parameter_name = as.character("PM10")) %>% dplyr::rename(Latitude = SITE_LATITUDE, Longitude = SITE_LONGITUDE)
+
+
+pm_10_df <- pm_10_df %>% dplyr::filter(COUNTY == "Philadelphia")
+
+head(pm_10_df)
+```
+
+## Creating Base Raster
+
+```{r work}
+## 0.1km Rasters for Philadelphia only
+getRaster_ph <- function(data, par_name){
+  ## filter data to contiguous US
+  ## get one row per location by averaging all entries
+  dat <- dplyr::filter(data,
+                       Parameter_name == par_name) %>%
+    dplyr::filter(!is.na(Mean_value), Mean_value >= 0) %>%
+    dplyr::group_by(Latitude, Longitude) %>%
+    dplyr::summarise(avg = mean(Mean_value, na.rm = TRUE))
+  
+  if(nrow(dat) > 0){
+    coordinates(dat) = ~Longitude+Latitude
+    crs(dat) <- CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+    
+    ## make base raster
+    #find distance between the latitude and longitudes and convert to km (*111 for 1km)
+    r <- raster(nrow = 301, ncol = 360, extent(-75.28027, -74.95576, 39.867, 40.13799)) #0.1km
+    crs(r) <- CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+    ## generate raster (idw with 5 nearest sites)
+    gs <- gstat(formula=avg~1, data=dat, nmax = 5)
+    nn <- interpolate(r, gs)
+    
+    return(nn)
+  } else{
+    print("zero")
+    #find distance between the latitude and longitudes and convert to km (*111 for 1km)
+    r <- raster(nrow = 301, ncol = 360, extent(-75.28027, -74.95576, 39.867, 40.13799))
+    crs(r) <- CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+    values(r) <- rep(-1, 108360)
+    return(r)
+  }
+}
+
+```
+
+## Writing Rasters
+```{r pm 2.5}
+
+#PH shape file
+ph_shapefile <- readOGR("./Neighborhoods_Philadelphia/Neighborhoods_Philadelphia.shp")
+ph <- spTransform(x = ph_shapefile, CRSobj = '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
+
+#Census Shapefile
+census_shapefile <- readOGR("./census_shapefile/tl_2020_42_tract.shp")
+
+
+#make pm.25 raster
+pm_ph_daily_brick <- brick(getRaster_ph(pm_epa_df,"PM2.5"))
+pm_ph_daily <- getRaster_ph(pm_epa_df,"PM2.5")
+pm_ph_daily_brick[pm_ph_daily_brick == -1] <- NA
+names(pm_ph_daily_brick) <- c("pm2.5")
+c <- crop(pm_ph_daily_brick, extent(ph))
+pm25_raster <- raster::mask(c, ph) 
+writeRaster(pm25_raster,"ph_pm_daily_0.1km_brick.tif",overwrite=TRUE)
+
+#make so2 raster
+SO2_ph_daily_brick <- brick(getRaster_ph(so2_epa_df,"SO2"))
+SO2_ph_daily_brick[SO2_ph_daily_brick == -1] <- NA
+names(SO2_ph_daily_brick) <- c("so2")
+#crop by shape
+c <- crop(SO2_ph_daily_brick, extent(ph))
+so2_raster <- raster::mask(c, ph) 
+writeRaster(so2_raster,"ph_SO2_daily_0.1km_brick.tif",overwrite=TRUE)
+
+
+#make CO raster
+CO_ph_daily_brick <- brick(getRaster_ph(pm_co_df,"CO"))
+CO_ph_daily_brick[CO_ph_daily_brick == -1] <- NA
+names(CO_ph_daily_brick) <- c("CO")
+#crop by shape
+c <- crop(CO_ph_daily_brick, extent(ph))
+co_raster <- raster::mask(c, ph) 
+writeRaster(co_raster,"ph_CO_daily_0.1km_brick.tif",overwrite=TRUE)
+
+#make Ozone raster
+oz_ph_daily_brick <- brick(getRaster_ph(pm_oz_df,"OZ"))
+oz_ph_daily_brick[oz_ph_daily_brick == -1] <- NA
+names(oz_ph_daily_brick) <- c("OZ")
+#crop by shape
+c <- crop(oz_ph_daily_brick, extent(ph))
+o3_raster <- raster::mask(c, ph) 
+writeRaster(o3_raster,"ph_oz_daily_0.1km_brick.tif",overwrite=TRUE)
+
+#make NO2 raster
+NO2_ph_daily_brick <- brick(getRaster_ph(pm_no2_df,"NO2"))
+NO2_ph_daily_brick[NO2_ph_daily_brick == -1] <- NA
+names(NO2_ph_daily_brick) <- c("NO2")
+#crop by shape
+c <- crop(NO2_ph_daily_brick, extent(ph))
+no2_raster <- raster::mask(c, ph) 
+writeRaster(no2_raster,"ph_NO2_daily_0.1km_brick.tif",overwrite=TRUE)
+
+
+
+#make Pb raster
+pb_ph_daily_brick <- brick(getRaster_ph(pm_pb_df,"Pb"))
+pb_ph_daily_brick[pb_ph_daily_brick == -1] <- NA
+names(pb_ph_daily_brick) <- c("Pb")
+#crop by shape
+c <- crop(pb_ph_daily_brick, extent(ph))
+pb_raster <- raster::mask(c, ph) 
+writeRaster(pb_raster,"ph_pb_daily_0.1km_brick.tif",overwrite=TRUE)
+
+
+#make PM10 raster
+pm10_ph_daily_brick <- brick(getRaster_ph(pm_10_df,"PM10"))
+pm10_ph_daily_brick[pm10_ph_daily_brick == -1] <- NA
+names(pm10_ph_daily_brick) <- c("PM10")
+#crop by shape
+c <- crop(pm10_ph_daily_brick, extent(ph))
+pm10_raster <- raster::mask(c, ph) 
+writeRaster(pm10_raster,"ph_pm10_daily_0.1km_brick.tif",overwrite=TRUE)
+```
+
+```{r census means}
+
+pm25_poly <- raster::extract(pm25_raster, census_shapefile)
+pm10_poly <- raster::extract(pm10_raster, census_shapefile)
+no2_poly <- raster::extract(no2_raster, census_shapefile)
+o3_poly <- raster::extract(o3_raster, census_shapefile)
+co_poly <- raster::extract(co_raster, census_shapefile)
+so2_poly <- raster::extract(so2_raster, census_shapefile)
+pb_poly <- raster::extract(pb_raster, census_shapefile)
+
+# Note output is a list of 286 vectors, corresponding to the 286 polygons in the sepa zip/muni shapefile. Each vector contains all the raster values falling within a polygon.
+str(census_shapefile, max.level = 2)
+str(pm25_poly)
+str(pm10_poly)
+str(no2_poly)
+str(o3_poly)
+str(co_poly)
+str(so2_poly)
+str(pb_poly)
+
+# Find the mean for each polygon
+pm25_means <- unlist(lapply(pm25_poly, function(x) if (!is.null(x)) mean(x, na.rm=TRUE) else NA ))
+pm10_means <- unlist(lapply(pm10_poly, function(x) if (!is.null(x)) mean(x, na.rm=TRUE) else NA ))
+no2_means <- unlist(lapply(no2_poly, function(x) if (!is.null(x)) mean(x, na.rm=TRUE) else NA ))
+o3_means <- unlist(lapply(o3_poly, function(x) if (!is.null(x)) mean(x, na.rm=TRUE) else NA ))
+co_means <- unlist(lapply(co_poly, function(x) if (!is.null(x)) mean(x, na.rm=TRUE) else NA ))
+so2_means <- unlist(lapply(so2_poly, function(x) if (!is.null(x)) mean(x, na.rm=TRUE) else NA ))
+pb_means <- unlist(lapply(pb_poly, function(x) if (!is.null(x)) mean(x, na.rm=TRUE) else NA ))
+
+
+# Append mean pm to SEPA data
+census_shapefile@data$pm25 <- pm25_means
+census_shapefile@data$pm10 <- pm10_means
+census_shapefile@data$no2 <- no2_means
+census_shapefile@data$o3 <- o3_means
+census_shapefile@data$co <- co_means
+census_shapefile@data$so2 <- so2_means
+census_shapefile@data$pb <- pb_means
+df_census <- census_shapefile@data
+census_final <- df_census %>% dplyr::select(GEOID, pm25, pm10, no2, o3, co, so2, pb) %>% drop_na()
+head(census_final)
+```
+
+```{r labelformat}
+myLabelFormat = function(prefix = "", suffix = "", between = " &ndash; ", digits = 3, 
+                         big.mark = ",", transform = identity, t.val = Inf) {
+  formatNum <- function(x) {
+    format(round(transform(x), digits), trim = TRUE, scientific = FALSE, 
+           big.mark = big.mark)
+  }
+  function(type, ...) {
+    switch(type, numeric = (function(cuts) {
+      cuts <- sort(cuts, decreasing = T) #just added
+      paste0(prefix, formatNum(cuts), ifelse(cuts == t.val, "+", ""))
+    })(...), bin = (function(cuts) {
+      n <- length(cuts)
+      paste0(prefix, formatNum(cuts[-n]), between, formatNum(cuts[-1]), 
+             suffix)
+    })(...), quantile = (function(cuts, p) {
+      n <- length(cuts)
+      p <- paste0(round(p * 100), "%")
+      cuts <- paste0(formatNum(cuts[-n]), between, formatNum(cuts[-1]))
+      paste0("<span title=\"", cuts, "\">", prefix, p[-n], 
+             between, p[-1], suffix, "</span>")
+    })(...), factor = (function(cuts) {
+      paste0(prefix, as.character(transform(cuts)), suffix)
+    })(...))
+  }
+}
+
+
+```
+
+
+## Plotting Maps
+
+```{r map}
+make_map <- function(ras.t,title="PM2.5",limt,all_values,monitors_ph,palette){
+  if (palette %in% c("heat","HEAT","h","H")){
+    palette1 <- colorNumeric(rev(heat.colors(8)), all_values, na.color = "transparent") #terrain
+    palette2 <- colorNumeric(heat.colors(8), all_values, na.color = "transparent")
+  } else if (palette %in% c("terrain","TERRAIN","t","T")) {
+    palette1 <- colorNumeric(rev(terrain.colors(8)), all_values, na.color = "transparent")
+    palette2 <- colorNumeric(terrain.colors(8), all_values, na.color = "transparent")
+  }
+map1<-leaflet(ph) %>% 
+    setView(-75.14, 40, zoom = 11) %>%
+    addRasterImage(x = ras.t, colors = palette1, method = "ngb", opacity = 0.7) %>%
+    addPolygons(color = "black", weight = 1, fillColor = "transparent") %>%
+    addCircleMarkers(lng = monitors_ph$Longitude, lat = monitors_ph$Latitude, radius = 5,label = monitors_ph$SiteName) %>%
+    addLegend(pal = palette2,
+              values = all_values,
+              labFormat = myLabelFormat(t.val = limt), title = title,
+              position = "bottomleft")
+map1
+}
+```
+
+## Making the Bricks
+
+```{r PM2.5 brick}
+pm2.5.brick <- brick("ph_pm_daily_0.1km_brick.tif")
+#Use max value to reclassify
+pm.t1 <- reclassify(pm2.5.brick[[1]], c(11, Inf, 11)) #8
+pm25_data <- values(pm.t1)
+epa_sites <- pm_epa_df %>% dplyr::select(SiteName, Latitude, Longitude) %>% unique()
+epa_main <- pm_epa_df %>% dplyr::group_by(Latitude, Longitude) %>% dplyr::summarise(m = mean(Mean_value))
+P1 <- make_map(pm.t1,title="PM2.5",11,pm25_data,epa_sites,palette="h") 
+P1
+```
+
+```{r CO brick}
+pm2.5.brick <- brick("ph_CO_daily_0.1km_brick.tif")
+#Use max value to reclassify
+pm.t2 <- reclassify(pm2.5.brick[[1]], c(11, Inf, 11)) #8
+pm25_data <- values(pm.t1)
+epa_sites <- pm_co_df %>% dplyr::select(SiteName, Latitude, Longitude) %>% unique()
+P2 <- make_map(pm.t1,title="CO",11,pm25_data,epa_sites,palette="h") 
+P2
+```
+
+```{r NO2 brick}
+pmno2.brick <- brick("ph_NO2_daily_0.1km_brick.tif")
+#Use max value to reclassify
+pm.t1 <- reclassify(pmno2.brick[[1]], c(11, Inf, 11)) #8
+pmno2_data <- values(pm.t1)
+epa_sites <- pm_no2_df %>% dplyr::select(SiteName, Latitude, Longitude) %>% unique()
+P3 <- make_map(pm.t1,title="NO2",11,pmno2_data,epa_sites,palette="h")
+P3
+```
+
+
+```{r SO2 brick}
+pm2.5.brick <- brick("ph_SO2_daily_0.1km_brick.tif")
+#Use max value to reclassify
+pm.t1 <- reclassify(pm2.5.brick[[1]], c(11, Inf, 11)) #8
+pm25_data <- values(pm.t1)
+epa_sites <- so2_epa_df %>% dplyr::select(SiteName, Latitude, Longitude) %>% unique()
+P3 <- make_map(pm.t1,title="SO2",11,pm25_data,epa_sites,palette="h") #save image as precovid 2020
+P3
+```
+
+
+
+
+
+```{r Ozone brick}
+pm2.5.brick <- brick("ph_oz_daily_0.1km_brick.tif")
+#Use max value to reclassify
+pm.t1 <- reclassify(pm2.5.brick[[1]], c(11, Inf, 11)) #8
+pm25_data <- values(pm.t1)
+epa_sites <- pm_oz_df %>% dplyr::select(SiteName, Latitude, Longitude) %>% unique()
+P4 <- make_map(pm.t1,title="Ozone",11,pm25_data,epa_sites,palette="h") #save image as precovid 2020
+P4
+```
+```{r PM10 brick}
+pm2.5.brick <- brick("ph_pm10_daily_0.1km_brick.tif")
+#Use max value to reclassify
+pm.t1 <- reclassify(pm2.5.brick[[1]], c(11, Inf, 11)) #8
+pm25_data <- values(pm.t1)
+epa_sites <- pm_10_df %>% dplyr::select(SiteName, Latitude, Longitude) %>% unique()
+P5 <- make_map(pm.t1,title="PM10",11,pm25_data,epa_sites,palette="h") #save image as precovid 2020
+P5
+```
+
+```{r Pb brick}
+pb.brick <- brick("ph_pb_daily_0.1km_brick.tif")
+#Use max value to reclassify
+pm.t1 <- reclassify(pb.brick[[1]], c(11, Inf, 11)) #8
+pb_data <- values(pm.t1)
+epa_sites <- pm_pb_df %>% dplyr::select(SiteName, Latitude, Longitude) %>% unique()
+P6 <- make_map(pm.t1,title="Pb",11,pb_data,epa_sites,palette="h")
+P6
+## Make a table with tracts, automatically should come with GEOIDs once you convert bricks to table (need to find GEOIDs and values for the entire raster)
+```
+
+```{r together}
+library(htmltools)
+leaflet_grid <- 
+  tagList(
+    tags$table(width = "100%",
+      tags$tr(
+          tags$td(P1),
+          tags$td(P2)
+      ),
+      tags$tr(
+        tags$td(P3),
+        tags$td(P4)
+      )
+    )
+  )
+browsable(leaflet_grid)
+```
+```{r raster corr}
+library(gstat)                                         
+library(sp)
+z <- stack(pm.t1, pm.t2)
+r <- calc(z, fun=function(x) cor(x[1], x[2], method='pearson'))
+plot(pm.t1)
+```
+
+## Plotting Census Data
+
+```{r census}
+#census_api_key("3304af6f650f9f6e42986fbc8497d3b58ac1250e", install=TRUE, overwrite = TRUE)
+v17 <- load_variables(dataset = "acs5", year = 2019)
+view(v17)
+```
+
+```{r race}
+race <- get_acs(geography = "tract", year = 2019, variables = c("B03002_001", "B03002_001","B03002_002","B03002_003","B03002_004","B03002_005", "B03002_006", "B03002_007","B03002_008", "B03002_009", "B03002_010", "B03002_011"), state = "PA", county = c("Philadelphia", "Chester", "Montgomery", "Bucks", "Delaware"))
+rtracts <- tracts(state = 'PA', county = c("Philadelphia", "Chester" , "Montgomery", "Bucks", "Delaware"), cb = TRUE)
+class(race)
+class(rtracts)
+plot(st_geometry(rtracts))
+```
+
+```{r hisp plot}
+race_merged<- geo_join(rtracts, race, "GEOID", "GEOID")
+race_merged
+popup <- paste0("GEOID: ", race_merged$GEOID, "<br>", "Number of Hispanic or Latino People: ", race_merged$estimate)
+pal <- colorNumeric(
+  palette = "YlGnBu",
+  domain = race_merged$estimate
+)
+
+map3<-leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(data = race_merged, 
+              fillColor = ~pal(estimate), 
+              color = "#b2aeae", # you need to use hex colors
+              fillOpacity = 0.7, 
+              weight = 1, 
+              smoothFactor = 0.2,
+              popup = popup) %>%
+  addLegend(pal = pal, 
+            values = race_merged$estimate, 
+            position = "bottomright", 
+            title = "Number of Hispanic or Latino People") 
+map3
+```
+
+
+```{r pop}
+readRenviron("~/.Renviron")
+options(tigris_use_cache = TRUE)
+
+# Get land area for tracts to calculate population density
+sepabg <- tracts(state = "42", county = c("101", "017", "029", "045",
+                                                "091"))
+st_geometry(sepabg) <- NULL
+head(sepabg)
+sepabg$A_KM2 <- sepabg$ALAND*1e-6
+
+sf1_raw <- get_acs(geography = "tract", year = 2019, 
+                         variables = c("B02001_001",  # Race total
+                                       "B02001_002",   # Total Non-Hispanic White
+                                       "B02001_003",   # Total Black population
+                                       "B02001_004",   # Total Native American population 
+                                       "B02001_005",   # Total Asian
+                                       "B03002_001",  # Total Ethnicity
+                                       "B03002_012"   # Total Hispanic or Latinx
+                                       ),  
+                         state = "PA", county = c("Philadelphia", "Bucks", 
+                                                  "Chester", "Delaware", 
+                                                  "Montgomery"))
+sf1 <- sf1_raw %>%
+  group_by(GEOID) %>%
+  summarise(race_tot = estimate[variable == "B02001_001"],
+            white_count = estimate[variable == "B02001_002"],
+            black_count = estimate[variable == "B02001_003"],
+            asian_count = estimate[variable == "B02001_004"],
+            native_count = estimate[variable == "B02001_005"],
+            hispa_tot = estimate[variable == "B03002_001"],
+            hispa_count = estimate[variable == "B03002_012"]
+            ) %>%
+  mutate(white_per = white_count/race_tot*100,
+         black_per = black_count/race_tot*100,
+         asian_per = asian_count/race_tot*100,
+         native_per = native_count/race_tot*100,
+         hispa_per = hispa_count/hispa_tot*100,
+         pop_count = race_tot) %>%
+  dplyr::select(GEOID, pop_count, white_per, black_per, asian_per, native_per, hispa_per)
+knitr::kable(head(sf1), "simple")
+```
+
+```{r geoid code}
+
+append_geoid <- function(address, geoid_type = 'tract') {
+
+  if ("lat" %in% colnames(address) && "lon" %in% colnames(address)) {
+    # Call for each row of the data
+    geoids <- vector(mode="character", length = nrow(address))
+    for (i in 1:nrow(address)) {
+      geoids[i] <- call_geolocator_latlon(address$lat[i], address$lon[i])
+    }
+  } else {
+    # If street, city, or state columns are factors, convert them
+    # Call for each row of the data
+    geoids <- vector(mode="character", length = nrow(address))
+    for (i in 1:nrow(address)) {
+      geoids[i] <- call_geolocator(
+        as.character(address$street[i]),
+        as.character(address$city[i]),
+        as.character(address$state[i])
+      )
+    }
+  }
+  geoids
+  # Append onto database
+  address <- dplyr::mutate(address, geoid = geoids)
+
+  # AABBBCCCCCCDEEE
+  if (geoid_type == 'county') {
+    end <- 5
+  } else if (geoid_type == 'tract') {
+    end <- 11
+  } else if (geoid_type == 'block group') {
+    end <- 12
+  } else {
+    end <- 15
+  }
+  address <- dplyr::mutate(address,
+                           geoid = ifelse(is.na(.data$geoid), NA_character_, substr(.data$geoid, 1, end)))
+
+  return(address)
+}
+```
+
+```{r correlation plot}
+final <- merge(sf1, census_final, by = "GEOID")
+final[] <- lapply(final, function(x) {
+    if(is.factor(x)) as.numeric(as.character(x)) else x
+})
+sapply(final, class)
+final <- final %>% dplyr::select(-GEOID, -pm10)
+x <- cor(final, use = "complete.obs")
+col <- colorRampPalette(c("darkorange", "white", "steelblue"))(20)
+corrplot(x, type = "upper", order = "hclust", col = col)
+final
+```
+
+```{r sig value plot, error=TRUE}
+cor_5 <- rcorr(as.matrix(final))
+M <- cor_5$r
+p_mat <- cor_5$P
+corrplot(M, type = "upper", order = "hclust", 
+         p.mat = p_mat, sig.level = 0.01)
+```
+```{r coefficient plot}
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(M, method = "color", col = col(200),  
+         type = "upper", insig = "blank", order = "hclust", # Add coefficient of correlation
+         tl.col = "darkblue", tl.srt = 45, #Text label color and rotation
+         # Combine with significance level
+         p.mat = p_mat, sig.level = 0.01,  
+         # hide correlation coefficient on the principal diagonal
+         diag = FALSE 
+         )
+
+```
+```{r violin plot}
+viol <- final %>%
+ pivot_longer(
+   cols = ends_with("per"),
+   names_to = "ethnicity",
+   values_to = "percentage",
+   values_drop_na = TRUE
+ )
+
+viol <- subset(viol, select = -pop_count)
+viol$ethnicity <- as.factor(viol$ethnicity)
+library(ggplot2)
+# Basic violin plot
+p <- ggplot(viol, aes(x=ethnicity, y=percentage)) + 
+  geom_violin(trim = TRUE)
+p
+
+```
+
+
+```{r corrplot 2}
+corrplot(M, p.mat = p_mat, method = 'circle', type = 'lower', insig='blank',
+         addCoef.col ='black', number.cex = 0.6, order = 'AOE', diag=FALSE)
+
+
+```
+
+```{r income}
+# Get land area for tracts to calculate population density
+sepabg <- tracts(state = "42", county = c("101", "017", "029", "045",
+                                                "091"))
+st_geometry(sepabg) <- NULL
+head(sepabg)
+sepabg$A_KM2 <- sepabg$ALAND*1e-6
+
+sf2_raw <- get_acs(geography = "tract", year = 2019, 
+                         variables = c("B19001_001",  # Total households
+                                       "B19001_002",   # Total <$10,000
+                                       "B19001_006",   # Total 25000-29999
+                                       "B19001_010",   # Total 45000-49999
+                                       "B19001_013",   # Total 75000-99999
+                                       "B19001_015",  # Total 125000-149999
+                                       "B19001_017"   # Total >200000
+                                       ),  
+                         state = "PA", county = c("Philadelphia", "Bucks", 
+                                                  "Chester", "Delaware", 
+                                                  "Montgomery"))
+sf2 <- sf2_raw %>%
+  group_by(GEOID) %>%
+  summarise(house_tot = estimate[variable == "B19001_001"],
+            pov_count = estimate[variable == "B19001_002"],
+            low_count = estimate[variable == "B19001_006"],
+            lower_med_count = estimate[variable == "B19001_010"],
+            upper_med_count = estimate[variable == "B19001_013"],
+            upper_count = estimate[variable == "B19001_015"],
+            v_upper_count = estimate[variable == "B19001_017"]
+            ) %>%
+  mutate(pov_per = pov_count/house_tot*100,
+         low_per = low_count/house_tot*100,
+         lower_med_per = lower_med_count/house_tot*100,
+         upper_med_per = upper_med_count/house_tot*100,
+         upper_per = upper_count/house_tot*100,
+         v_upper_per = v_upper_count/house_tot*100) %>%
+  dplyr::select(GEOID, pov_per, low_per, lower_med_per, upper_med_per, upper_per, v_upper_per)
+
+
+```
+
+```{r correlation plot 2}
+final <- merge(sf2, census_final, by = "GEOID")
+final[] <- lapply(final, function(x) {
+    if(is.factor(x)) as.numeric(as.character(x)) else x
+})
+sapply(final, class)
+final <- final %>% dplyr::select(-GEOID, -pm10)
+x <- cor(final, use = "complete.obs")
+col <- colorRampPalette(c("darkorange", "white", "steelblue"))(20)
+corrplot(x, type = "upper", order = "hclust", col = col)
+```
